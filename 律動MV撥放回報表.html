@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>律動MV撥放回報表</title>
+    <style>
+        :root {
+            --primary-color: #769f9f; /* 調深後的莫蘭迪綠 */
+            --secondary-color: #fdfaf6; /* 溫暖的米白色背景 */
+            --accent-color: #d1b8b6; /* 調深後的粉藕色 */
+            --text-color: #333333; /* 調深後的文字顏色 */
+            --bg-color: #ffffff;
+            --shadow: 0 10px 30px rgba(0,0,0,0.03);
+            --border-radius: 24px;
+        }
+
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            scroll-behavior: smooth;
+        }
+
+        .container {
+            max-width: 850px;
+            width: 100%;
+            background: var(--bg-color);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-weight: 500; /* 加粗 */
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        #today-date {
+            font-weight: 400;
+            color: #777777; /* 調深日期顏色 */
+        }
+
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 20px;
+            background: #f0f0f0;
+            margin-bottom: 40px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.02);
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 20px;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #fafafa;
+            border-radius: 20px;
+        }
+
+        select, button {
+            padding: 14px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            outline: none;
+        }
+
+        select {
+            background: white;
+            color: var(--text-color);
+            border: 1px solid #eeeeee;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-am { background-color: #dcedc1; color: #2d5a4a; }
+        .btn-pm { background-color: #ffd3b6; color: #8a5a44; }
+        .btn-export { background-color: var(--primary-color); color: white; flex: 2; }
+        .btn-reset { background-color: #f5f5f5; color: #888888; flex: 1; }
+
+        .action-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+            margin-top: 20px;
+        }
+
+        th {
+            padding: 15px;
+            text-align: center;
+            color: #666666; /* 調深表格標題 */
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        td {
+            padding: 20px 15px;
+            text-align: center;
+            background: #ffffff;
+            border-top: 1px solid #f9f9f9;
+            border-bottom: 1px solid #f9f9f9;
+        }
+
+        td:first-child {
+            border-left: 1px solid #f9f9f9;
+            border-radius: 15px 0 0 15px;
+            font-weight: 600; /* 加深姓名權重 */
+        }
+
+        td:last-child {
+            border-right: 1px solid #f9f9f9;
+            border-radius: 0 15px 15px 0;
+        }
+
+        .status-badge {
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 12px;
+            display: inline-block;
+            font-weight: 600;
+        }
+
+        .status-done { background: #e8f6ef; color: #2d5a4a; }
+        .status-none { background: #fcfcfc; color: #888888; border: 1px dashed #cccccc; }
+
+        /* 置頂按鈕 */
+        .btn-top {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            font-size: 20px;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 1000;
+        }
+
+        .btn-top.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 12px;
+            color: #999999;
+            margin-top: 40px;
+            letter-spacing: 0.5px;
+        }
+
+        /* 動畫效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .container {
+            animation: fadeIn 0.8s ease-out;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="top">
+    <header>
+        <h1>律動MV撥放回報表</h1>
+        <p id="today-date"></p>
+    </header>
+
+    <div class="video-container">
+        <iframe src="https://www.youtube.com/embed/IbiQpSCSz7I" allowfullscreen></iframe>
+    </div>
+
+    <div class="control-panel">
+        <select id="member-select">
+            <option value="" disabled selected>請選擇您的姓名</option>
+            <option value="淑芬">淑芬</option>
+            <option value="妙妤">妙妤</option>
+            <option value="渝珍">渝珍</option>
+            <option value="宥緁">宥緁</option>
+            <option value="安媞">安媞</option>
+            <option value="宜庭">宜庭</option>
+        </select>
+        <div class="btn-group">
+            <button class="btn-am" onclick="report('上午')">上午回報</button>
+            <button class="btn-pm" onclick="report('下午')">下午回報</button>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>姓名</th>
+                <th>上午狀態</th>
+                <th>下午狀態</th>
+            </tr>
+        </thead>
+        <tbody id="status-table-body">
+            <!-- JS 插入內容 -->
+        </tbody>
+    </table>
+
+    <div class="action-row">
+        <button class="btn-export" onclick="exportCSV()">下載今日報表 (CSV)</button>
+        <button class="btn-reset" onclick="resetLogs()">清除紀錄</button>
+    </div>
+
+    <div class="footer-note">
+        輕輕地聽，慢慢地做。
+    </div>
+</div>
+
+<!-- 置頂按鈕 -->
+<button class="btn-top" id="back-to-top" onclick="scrollToTop()">↑</button>
+
+<script>
+    const members = ["淑芬", "妙妤", "渝珍", "宥緁", "安媞", "宜庭"];
+    const storageKey = 'mv_playback_logs_v1';
+    
+    // 初始化日期與時間更新
+    function updateDateTime() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('today-date').innerText = `${dateStr} ${timeStr}`;
+    }
+    
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+
+    const today = new Date().toLocaleDateString('zh-TW');
+
+    // 從 LocalStorage 獲取今日資料
+    function getLogs() {
+        const data = JSON.parse(localStorage.getItem(storageKey)) || {};
+        if (data.date !== today) {
+            return { date: today, records: {} };
+        }
+        return data;
+    }
+
+    function saveLogs(logs) {
+        localStorage.setItem(storageKey, JSON.stringify(logs));
+    }
+
+    function renderTable() {
+        const logs = getLogs();
+        const tbody = document.getElementById('status-table-body');
+        tbody.innerHTML = '';
+
+        members.forEach(name => {
+            const record = logs.records[name] || {};
+            const amStatus = record.am ? `<span class="status-badge status-done">已完成 ${record.am}</span>` : '<span class="status-badge status-none">等待中</span>';
+            const pmStatus = record.pm ? `<span class="status-badge status-done">已完成 ${record.pm}</span>` : '<span class="status-badge status-none">等待中</span>';
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${name}</td>
+                <td>${amStatus}</td>
+                <td>${pmStatus}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function report(type) {
+        const name = document.getElementById('member-select').value;
+        if (!name) {
+            alert('請先選擇您的名字喔。');
+            return;
+        }
+
+        const logs = getLogs();
+        if (!logs.records[name]) logs.records[name] = {};
+
+        const now = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        
+        if (type === '上午') {
+            if (logs.records[name].am && !confirm('已經回報過上午了，要更新時間嗎？')) return;
+            logs.records[name].am = now;
+        } else {
+            if (logs.records[name].pm && !confirm('已經回報過下午了，要更新時間嗎？')) return;
+            logs.records[name].pm = now;
+        }
+
+        saveLogs(logs);
+        renderTable();
+    }
+
+    function resetLogs() {
+        if (confirm('確定要清除今日的所有回報紀錄嗎？此動作無法復原。')) {
+            const logs = { date: today, records: {} };
+            saveLogs(logs);
+            renderTable();
+        }
+    }
+
+    function exportCSV() {
+        const logs = getLogs();
+        let csvContent = "\ufeff姓名,日期,時段,時間\n";
+        
+        members.forEach(name => {
+            const record = logs.records[name] || {};
+            if (record.am) csvContent += `${name},${today},上午,${record.am}\n`;
+            if (record.pm) csvContent += `${name},${today},下午,${record.pm}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `MV播放紀錄_${today}.csv`);
+        link.click();
+    }
+
+    // 置頂功能
+    window.onscroll = function() {
+        const btn = document.getElementById("back-to-top");
+        if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {
+            btn.classList.add("show");
+        } else {
+            btn.classList.remove("show");
+        }
+    };
+
+    function scrollToTop() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 初始渲染
+    renderTable();
+</script>
+
+</body>
+</html>
