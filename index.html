@@ -44,14 +44,14 @@
 
         h1 {
             color: var(--primary-color);
-            font-weight: 500; /* 加粗 */
+            font-weight: 500;
             letter-spacing: 2px;
             margin-bottom: 8px;
         }
 
         #today-date {
             font-weight: 400;
-            color: #777777; /* 調深日期顏色 */
+            color: #777777;
         }
 
         .video-container {
@@ -136,7 +136,7 @@
         th {
             padding: 15px;
             text-align: center;
-            color: #666666; /* 調深表格標題 */
+            color: #666666;
             font-weight: 500;
             font-size: 14px;
             text-transform: uppercase;
@@ -154,7 +154,7 @@
         td:first-child {
             border-left: 1px solid #f9f9f9;
             border-radius: 15px 0 0 15px;
-            font-weight: 600; /* 加深姓名權重 */
+            font-weight: 600;
         }
 
         td:last-child {
@@ -173,7 +173,6 @@
         .status-done { background: #e8f6ef; color: #2d5a4a; }
         .status-none { background: #fcfcfc; color: #888888; border: 1px dashed #cccccc; }
 
-        /* 置頂按鈕 */
         .btn-top {
             position: fixed;
             bottom: 40px;
@@ -206,7 +205,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* 動畫效果 */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -268,12 +266,28 @@
     </div>
 </div>
 
-<!-- 置頂按鈕 -->
 <button class="btn-top" id="back-to-top" onclick="scrollToTop()">↑</button>
 
-<script>
+<!-- 引入 Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA-DweTEptyq2rhqA9HJwxLrG_20VEeRqY",
+      authDomain: "mv-playback-tracker.firebaseapp.com",
+      projectId: "mv-playback-tracker",
+      storageBucket: "mv-playback-tracker.firebasestorage.app",
+      messagingSenderId: "796999777225",
+      appId: "1:796999777225:web:4d442fe8598d47151d8618",
+      measurementId: "G-RDVV36VQSE"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     const members = ["淑芬", "妙妤", "渝珍", "宥緁", "安媞", "宜庭"];
-    const storageKey = 'mv_playback_logs_v1';
+    const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
     
     // 初始化日期與時間更新
     function updateDateTime() {
@@ -286,28 +300,25 @@
     setInterval(updateDateTime, 1000);
     updateDateTime();
 
-    const today = new Date().toLocaleDateString('zh-TW');
+    // 監聽雲端資料庫
+    const docRef = doc(db, "playback_logs", today);
+    let currentLogs = {};
 
-    // 從 LocalStorage 獲取今日資料
-    function getLogs() {
-        const data = JSON.parse(localStorage.getItem(storageKey)) || {};
-        if (data.date !== today) {
-            return { date: today, records: {} };
+    onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            currentLogs = docSnap.data().records || {};
+        } else {
+            currentLogs = {};
         }
-        return data;
-    }
+        renderTable(currentLogs);
+    });
 
-    function saveLogs(logs) {
-        localStorage.setItem(storageKey, JSON.stringify(logs));
-    }
-
-    function renderTable() {
-        const logs = getLogs();
+    function renderTable(records) {
         const tbody = document.getElementById('status-table-body');
         tbody.innerHTML = '';
 
         members.forEach(name => {
-            const record = logs.records[name] || {};
+            const record = records[name] || {};
             const amStatus = record.am ? `<span class="status-badge status-done">已完成 ${record.am}</span>` : '<span class="status-badge status-none">等待中</span>';
             const pmStatus = record.pm ? `<span class="status-badge status-done">已完成 ${record.pm}</span>` : '<span class="status-badge status-none">等待中</span>';
             
@@ -321,46 +332,55 @@
         });
     }
 
-    function report(type) {
+    // 回報功能
+    window.report = async function(type) {
         const name = document.getElementById('member-select').value;
         if (!name) {
             alert('請先選擇您的名字喔。');
             return;
         }
 
-        const logs = getLogs();
-        if (!logs.records[name]) logs.records[name] = {};
-
         const now = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
         
+        const newRecords = { ...currentLogs };
+        if (!newRecords[name]) newRecords[name] = {};
+
         if (type === '上午') {
-            if (logs.records[name].am && !confirm('已經回報過上午了，要更新時間嗎？')) return;
-            logs.records[name].am = now;
+            if (newRecords[name].am && !confirm('已經回報過上午了，要更新時間嗎？')) return;
+            newRecords[name].am = now;
         } else {
-            if (logs.records[name].pm && !confirm('已經回報過下午了，要更新時間嗎？')) return;
-            logs.records[name].pm = now;
+            if (newRecords[name].pm && !confirm('已經回報過下午了，要更新時間嗎？')) return;
+            newRecords[name].pm = now;
         }
 
-        saveLogs(logs);
-        renderTable();
-    }
-
-    function resetLogs() {
-        if (confirm('確定要清除今日的所有回報紀錄嗎？此動作無法復原。')) {
-            const logs = { date: today, records: {} };
-            saveLogs(logs);
-            renderTable();
+        try {
+            await setDoc(docRef, { records: newRecords });
+        } catch (e) {
+            console.error("Error updating document: ", e);
+            alert("雲端儲存失敗，請檢查網路連接。");
         }
     }
 
-    function exportCSV() {
-        const logs = getLogs();
+    // 清除紀錄
+    window.resetLogs = async function() {
+        if (confirm('確定要清除今日的所有回報紀錄嗎？所有同仁的畫面都會被清空。')) {
+            try {
+                await setDoc(docRef, { records: {} });
+            } catch (e) {
+                console.error("Error resetting document: ", e);
+            }
+        }
+    }
+
+    // 匯出 CSV
+    window.exportCSV = function() {
         let csvContent = "\ufeff姓名,日期,時段,時間\n";
+        const dateFormatted = today.replace(/-/g, '/');
         
         members.forEach(name => {
-            const record = logs.records[name] || {};
-            if (record.am) csvContent += `${name},${today},上午,${record.am}\n`;
-            if (record.pm) csvContent += `${name},${today},下午,${record.pm}\n`;
+            const record = currentLogs[name] || {};
+            if (record.am) csvContent += `${name},${dateFormatted},上午,${record.am}\n`;
+            if (record.pm) csvContent += `${name},${today.replace(/-/g, '/')},下午,${record.pm}\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -371,7 +391,7 @@
         link.click();
     }
 
-    // 置頂功能
+    // 置頂按鈕邏輯
     window.onscroll = function() {
         const btn = document.getElementById("back-to-top");
         if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {
@@ -381,12 +401,9 @@
         }
     };
 
-    function scrollToTop() {
+    window.scrollToTop = function() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-
-    // 初始渲染
-    renderTable();
 </script>
 
 </body>
