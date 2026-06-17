@@ -257,7 +257,7 @@
     </table>
 
     <div class="action-row">
-        <button class="btn-export" onclick="exportCSV()">下載今日報表 (CSV)</button>
+        <button class="btn-export" onclick="exportCSV()">下載完整報表 (CSV)</button>
         <button class="btn-reset" onclick="resetLogs()">清除紀錄</button>
     </div>
 
@@ -271,7 +271,7 @@
 <!-- 引入 Firebase SDK -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyA-DweTEptyq2rhqA9HJwxLrG_20VEeRqY",
@@ -372,23 +372,57 @@
         }
     }
 
-    // 匯出 CSV
-    window.exportCSV = function() {
-        let csvContent = "\ufeff姓名,日期,時段,時間\n";
-        const dateFormatted = today.replace(/-/g, '/');
-        
-        members.forEach(name => {
-            const record = currentLogs[name] || {};
-            if (record.am) csvContent += `${name},${dateFormatted},上午,${record.am}\n`;
-            if (record.pm) csvContent += `${name},${today.replace(/-/g, '/')},下午,${record.pm}\n`;
-        });
+    // 匯出 CSV (包含所有歷史紀錄)
+    window.exportCSV = async function() {
+        try {
+            const querySnapshot = await getDocs(collection(db, "playback_logs"));
+            let csvContent = "\ufeff日期,姓名,時段,時間\n";
+            
+            let allRecords = [];
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `MV播放紀錄_${today}.csv`);
-        link.click();
+            querySnapshot.forEach((doc) => {
+                const date = doc.id;
+                const data = doc.data().records || {};
+                
+                for (const name in data) {
+                    const record = data[name];
+                    if (record.am) {
+                        allRecords.push({
+                            date: date.replace(/-/g, '/'),
+                            name: name,
+                            period: '上午',
+                            time: record.am
+                        });
+                    }
+                    if (record.pm) {
+                        allRecords.push({
+                            date: date.replace(/-/g, '/'),
+                            name: name,
+                            period: '下午',
+                            time: record.pm
+                        });
+                    }
+                }
+            });
+
+            // 按照日期排序
+            allRecords.sort((a, b) => b.date.localeCompare(a.date));
+
+            allRecords.forEach(row => {
+                csvContent += `${row.date},${row.name},${row.period},${row.time}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            const exportDate = new Date().toISOString().slice(0, 10);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `MV播放完整紀錄_${exportDate}.csv`);
+            link.click();
+        } catch (e) {
+            console.error("Error exporting CSV: ", e);
+            alert("匯出失敗，請稍後再試。");
+        }
     }
 
     // 置頂按鈕邏輯
