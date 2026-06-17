@@ -257,7 +257,7 @@
     </table>
 
     <div class="action-row">
-        <button class="btn-export" onclick="exportCSV()">下載完整報表 (CSV)</button>
+        <button class="btn-export" onclick="exportExcel()">下載完整報表 (Excel)</button>
         <button class="btn-reset" onclick="resetLogs()">清除紀錄</button>
     </div>
 
@@ -267,6 +267,9 @@
 </div>
 
 <button class="btn-top" id="back-to-top" onclick="scrollToTop()">↑</button>
+
+<!-- 引入 Excel 產生套件 (支援樣式) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
 <!-- 引入 Firebase SDK -->
 <script type="module">
@@ -372,55 +375,106 @@
         }
     }
 
-    // 匯出 CSV (包含所有歷史紀錄)
-    window.exportCSV = async function() {
+    // 匯出 Excel (使用專業套件，產生標準 .xlsx)
+    window.exportExcel = async function() {
         try {
             const querySnapshot = await getDocs(collection(db, "playback_logs"));
-            let csvContent = "\ufeff日期,姓名,時段,時間\n";
-            
             let allRecords = [];
 
             querySnapshot.forEach((doc) => {
                 const date = doc.id;
                 const data = doc.data().records || {};
-                
                 for (const name in data) {
                     const record = data[name];
-                    if (record.am) {
-                        allRecords.push({
-                            date: date.replace(/-/g, '/'),
-                            name: name,
-                            period: '上午',
-                            time: record.am
-                        });
-                    }
-                    if (record.pm) {
-                        allRecords.push({
-                            date: date.replace(/-/g, '/'),
-                            name: name,
-                            period: '下午',
-                            time: record.pm
-                        });
-                    }
+                    if (record.am) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '上午', time: record.am });
+                    if (record.pm) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '下午', time: record.pm });
                 }
             });
 
-            // 按照日期排序
-            allRecords.sort((a, b) => b.date.localeCompare(a.date));
-
-            allRecords.forEach(row => {
-                csvContent += `${row.date},${row.name},${row.period},${row.time}\n`;
+            // 按照日期順序排列 (由舊到新)
+            allRecords.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                if (dateA - dateB !== 0) return dateA - dateB;
+                if (a.period !== b.period) return a.period === '上午' ? -1 : 1;
+                return a.name.localeCompare(b.name, 'zh-Hant');
             });
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
+            // 準備 Excel 資料矩陣
+            const headerRow = ["日期", "姓名", "時段", "時間"];
+            const dataRows = allRecords.map(r => [r.date, r.name, r.period, r.time]);
+            
+            // 建立工作表內容 (含空出一行放標題)
+            const wsData = [
+                ["律動MV播放歷史紀錄彙整表", "", "", ""], // A1 (標題)
+                headerRow,                             // A2 (表頭)
+                ...dataRows                           // A3 開始 (資料)
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // 定義樣式
+            const styleTitle = {
+                font: { bold: true, sz: 16 },
+                alignment: { horizontal: "center", vertical: "center" }
+            };
+
+            const styleHeader = {
+                font: { bold: true, color: { rgb: "000000" } },
+                fill: { fgColor: { rgb: "D9EAD3" } }, // 淡綠色
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                    top: { style: "thin" }, bottom: { style: "thin" },
+                    left: { style: "thin" }, right: { style: "thin" }
+                }
+            };
+
+            const styleData = {
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                    top: { style: "thin" }, bottom: { style: "thin" },
+                    left: { style: "thin" }, right: { style: "thin" }
+                }
+            };
+
+            // 套用樣式與合併儲存格
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; // 合併第一行的 A1~D1
+            ws['A1'].s = styleTitle;
+
+            // 遍歷所有儲存格套用框線與對齊
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellRef]) continue;
+
+                    if (R === 0) {
+                        ws[cellRef].s = styleTitle;
+                    } else if (R === 1) {
+                        ws[cellRef].s = styleHeader;
+                    } else {
+                        ws[cellRef].s = styleData;
+                    }
+                }
+            }
+
+            // 設定欄寬
+            ws['!cols'] = [
+                { wch: 15 }, // 日期
+                { wch: 12 }, // 姓名
+                { wch: 10 }, // 時段
+                { wch: 10 }  // 時間
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "播放紀錄");
+
+            // 產生檔案並下載 (.xlsx)
             const exportDate = new Date().toISOString().slice(0, 10);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `MV播放完整紀錄_${exportDate}.csv`);
-            link.click();
+            XLSX.writeFile(wb, `MV播放完整紀錄_${exportDate}.xlsx`);
+
         } catch (e) {
-            console.error("Error exporting CSV: ", e);
+            console.error("Error exporting Excel: ", e);
             alert("匯出失敗，請稍後再試。");
         }
     }
