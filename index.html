@@ -252,8 +252,7 @@
             </tr>
         </thead>
         <tbody id="status-table-body">
-            <!-- JS 插入內容 -->
-        </tbody>
+            </tbody>
     </table>
 
     <div class="action-row">
@@ -268,10 +267,8 @@
 
 <button class="btn-top" id="back-to-top" onclick="scrollToTop()">↑</button>
 
-<!-- 引入 Excel 產生套件 (支援樣式) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
-<!-- 引入 Firebase SDK -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot, updateDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -335,7 +332,7 @@
         });
     }
 
-    // 回報功能
+    // 回報功能 (已修正：改用精準欄位更新，避免多人同時回報時互相覆蓋資料)
     window.report = async function(type) {
         const name = document.getElementById('member-select').value;
         if (!name) {
@@ -344,23 +341,34 @@
         }
 
         const now = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
-        
-        const newRecords = { ...currentLogs };
-        if (!newRecords[name]) newRecords[name] = {};
+        const userRecord = currentLogs[name] || {};
 
         if (type === '上午') {
-            if (newRecords[name].am && !confirm('已經回報過上午了，要更新時間嗎？')) return;
-            newRecords[name].am = now;
+            if (userRecord.am && !confirm('已經回報過上午了，要更新時間嗎？')) return;
         } else {
-            if (newRecords[name].pm && !confirm('已經回報過下午了，要更新時間嗎？')) return;
-            newRecords[name].pm = now;
+            if (userRecord.pm && !confirm('已經回報過下午了，要更新時間嗎？')) return;
         }
 
         try {
-            await setDoc(docRef, { records: newRecords });
+            // 使用「點記法」動態指定要更新的欄位 (例如 records.妙妤.am)
+            const fieldPath = type === '上午' ? `records.${name}.am` : `records.${name}.pm`;
+            
+            // updateDoc 只會單獨更新這一格，其他同仁剛才打卡的紀錄就不會被洗掉了！
+            await updateDoc(docRef, {
+                [fieldPath]: now
+            });
         } catch (e) {
             console.error("Error updating document: ", e);
-            alert("雲端儲存失敗，請檢查網路連接。");
+            
+            // 防呆：如果是當天的第一個同仁點擊，因為資料庫還沒有今日文件，updateDoc 會失敗。
+            // 這時候捕捉錯誤，改用 setDoc 進行首位初始化建立。
+            if (e.code === 'not-found' || e.message.includes('No document to update')) {
+                const initData = {};
+                initData[name] = type === '上午' ? { am: now } : { pm: now };
+                await setDoc(docRef, { records: initData }, { merge: true });
+            } else {
+                alert("雲端儲存失敗，請檢查網路連接。");
+            }
         }
     }
 
@@ -375,7 +383,7 @@
         }
     }
 
-    // 匯出 Excel (使用專業套件，產生標準 .xlsx)
+    // 匯出 Excel
     window.exportExcel = async function() {
         try {
             const querySnapshot = await getDocs(collection(db, "playback_logs"));
@@ -391,7 +399,6 @@
                 }
             });
 
-            // 按照日期順序排列 (由舊到新)
             allRecords.sort((a, b) => {
                 const dateA = new Date(a.date);
                 const dateB = new Date(b.date);
@@ -400,20 +407,17 @@
                 return a.name.localeCompare(b.name, 'zh-Hant');
             });
 
-            // 準備 Excel 資料矩陣
             const headerRow = ["日期", "姓名", "時段", "時間"];
             const dataRows = allRecords.map(r => [r.date, r.name, r.period, r.time]);
             
-            // 建立工作表內容 (含空出一行放標題)
             const wsData = [
-                ["律動MV播放歷史紀錄彙整表", "", "", ""], // A1 (標題)
-                headerRow,                             // A2 (表頭)
-                ...dataRows                           // A3 開始 (資料)
+                ["律動MV播放歷史紀錄彙整表", "", "", ""], 
+                headerRow,                             
+                ...dataRows                           
             ];
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-            // 定義樣式
             const styleTitle = {
                 font: { bold: true, sz: 16 },
                 alignment: { horizontal: "center", vertical: "center" }
@@ -421,7 +425,7 @@
 
             const styleHeader = {
                 font: { bold: true, color: { rgb: "000000" } },
-                fill: { fgColor: { rgb: "D9EAD3" } }, // 淡綠色
+                fill: { fgColor: { rgb: "D9EAD3" } }, 
                 alignment: { horizontal: "center", vertical: "center" },
                 border: {
                     top: { style: "thin" }, bottom: { style: "thin" },
@@ -437,11 +441,9 @@
                 }
             };
 
-            // 套用樣式與合併儲存格
-            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; // 合併第一行的 A1~D1
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; 
             ws['A1'].s = styleTitle;
 
-            // 遍歷所有儲存格套用框線與對齊
             const range = XLSX.utils.decode_range(ws['!ref']);
             for (let R = range.s.r; R <= range.e.r; ++R) {
                 for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -458,18 +460,16 @@
                 }
             }
 
-            // 設定欄寬
             ws['!cols'] = [
-                { wch: 15 }, // 日期
-                { wch: 12 }, // 姓名
-                { wch: 10 }, // 時段
-                { wch: 10 }  // 時間
+                { wch: 15 }, 
+                { wch: 12 }, 
+                { wch: 10 }, 
+                { wch: 10 }  
             ];
 
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "播放紀錄");
 
-            // 產生檔案並下載 (.xlsx)
             const exportDate = new Date().toISOString().slice(0, 10);
             XLSX.writeFile(wb, `MV播放完整紀錄_${exportDate}.xlsx`);
 
