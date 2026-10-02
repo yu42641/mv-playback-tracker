@@ -235,7 +235,6 @@
             <option value="渝珍">渝珍</option>
             <option value="宥緁">宥緁</option>
             <option value="安媞">安媞</option>
-            <option value="宜庭">宜庭</option>
         </select>
         <div class="btn-group">
             <button class="btn-am" onclick="report('上午')">上午回報</button>
@@ -286,7 +285,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const members = ["淑芬", "妙妤", "渝珍", "宥緁", "安媞", "宜庭"];
+    const members = ["淑芬", "妙妤", "渝珍", "宥緁", "安媞"];
     const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
     
     // 初始化日期與時間更新
