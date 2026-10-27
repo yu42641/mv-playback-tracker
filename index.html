@@ -6,10 +6,10 @@
     <title>律動MV撥放回報表</title>
     <style>
         :root {
-            --primary-color: #769f9f; /* 調深後的莫蘭迪綠 */
-            --secondary-color: #fdfaf6; /* 溫暖的米白色背景 */
-            --accent-color: #d1b8b6; /* 調深後的粉藕色 */
-            --text-color: #333333; /* 調深後的文字顏色 */
+            --primary-color: #769f9f;
+            --secondary-color: #fdfaf6;
+            --accent-color: #d1b8b6;
+            --text-color: #333333;
             --bg-color: #ffffff;
             --shadow: 0 10px 30px rgba(0,0,0,0.03);
             --border-radius: 24px;
@@ -54,6 +54,31 @@
             color: #777777;
         }
 
+        /* 歌曲切換按鈕 */
+        .song-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .song-tab {
+            flex: 1;
+            padding: 14px 16px;
+            background: #f5f5f5;
+            color: #888888;
+            border: 2px solid transparent;
+            line-height: 1.5;
+        }
+
+        .song-tab small {
+            display: block;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .song-tab.active.am { background: #dcedc1; color: #2d5a4a; border-color: #b9d58f; }
+        .song-tab.active.pm { background: #ffd3b6; color: #8a5a44; border-color: #f0b48f; }
+
         .video-container {
             position: relative;
             padding-bottom: 56.25%;
@@ -92,6 +117,7 @@
             cursor: pointer;
             transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
             outline: none;
+            font-family: inherit;
         }
 
         select {
@@ -139,8 +165,16 @@
             color: #666666;
             font-weight: 500;
             font-size: 14px;
-            text-transform: uppercase;
             letter-spacing: 1px;
+            line-height: 1.5;
+        }
+
+        th small {
+            display: block;
+            font-size: 12px;
+            font-weight: 400;
+            letter-spacing: 0;
+            color: #999999;
         }
 
         td {
@@ -190,6 +224,7 @@
             opacity: 0;
             visibility: hidden;
             z-index: 1000;
+            padding: 0;
         }
 
         .btn-top.show {
@@ -213,6 +248,12 @@
         .container {
             animation: fadeIn 0.8s ease-out;
         }
+
+        @media (max-width: 600px) {
+            .container { padding: 24px 16px; }
+            .control-panel { grid-template-columns: 1fr; padding: 20px; }
+            .song-tabs { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
@@ -223,8 +264,13 @@
         <p id="today-date"></p>
     </header>
 
+    <div class="song-tabs">
+        <button class="song-tab am" id="tab-am" onclick="showSong('am')">上午播放<small id="tab-am-name"></small></button>
+        <button class="song-tab pm" id="tab-pm" onclick="showSong('pm')">下午播放<small id="tab-pm-name"></small></button>
+    </div>
+
     <div class="video-container">
-        <iframe src="https://www.youtube.com/embed/IbiQpSCSz7I" allowfullscreen></iframe>
+        <iframe id="video-frame" src="" allowfullscreen></iframe>
     </div>
 
     <div class="control-panel">
@@ -246,12 +292,12 @@
         <thead>
             <tr>
                 <th>姓名</th>
-                <th>上午狀態</th>
-                <th>下午狀態</th>
+                <th>上午狀態<small id="th-am-name"></small></th>
+                <th>下午狀態<small id="th-pm-name"></small></th>
             </tr>
         </thead>
         <tbody id="status-table-body">
-            </tbody>
+        </tbody>
     </table>
 
     <div class="action-row">
@@ -287,15 +333,37 @@
 
     const members = ["淑芬", "妙妤", "渝珍", "宥緁", "安媞"];
     const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
-    
-    // 初始化日期與時間更新
+
+    // ===== 歌曲設定（要換歌只需要改這裡）=====
+    const SONGS = {
+        am: { name: "Over The Rainbow", id: "IbiQpSCSz7I" },
+        pm: { name: "你啊你啊",          id: "aX8W5-E3kqs" }
+    };
+    const SONG_BY_PERIOD = { '上午': SONGS.am.name, '下午': SONGS.pm.name };
+
+    // 歌名帶入各處
+    document.getElementById('tab-am-name').innerText = SONGS.am.name;
+    document.getElementById('tab-pm-name').innerText = SONGS.pm.name;
+    document.getElementById('th-am-name').innerText = SONGS.am.name;
+    document.getElementById('th-pm-name').innerText = SONGS.pm.name;
+
+    // 切換影片
+    window.showSong = function(period) {
+        document.getElementById('video-frame').src = `https://www.youtube.com/embed/${SONGS[period].id}`;
+        document.getElementById('tab-am').classList.toggle('active', period === 'am');
+        document.getElementById('tab-pm').classList.toggle('active', period === 'pm');
+    }
+
+    // 依時間自動選擇：12:00 前上午，之後下午
+    showSong(new Date().getHours() < 12 ? 'am' : 'pm');
+
     function updateDateTime() {
         const now = new Date();
         const dateStr = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         document.getElementById('today-date').innerText = `${dateStr} ${timeStr}`;
     }
-    
+
     setInterval(updateDateTime, 1000);
     updateDateTime();
 
@@ -320,7 +388,7 @@
             const record = records[name] || {};
             const amStatus = record.am ? `<span class="status-badge status-done">已完成 ${record.am}</span>` : '<span class="status-badge status-none">等待中</span>';
             const pmStatus = record.pm ? `<span class="status-badge status-done">已完成 ${record.pm}</span>` : '<span class="status-badge status-none">等待中</span>';
-            
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${name}</td>
@@ -331,7 +399,7 @@
         });
     }
 
-    // 回報功能 (已修正：改用精準欄位更新，避免多人同時回報時互相覆蓋資料)
+    // 回報功能（精準欄位更新，避免多人同時回報時互相覆蓋）
     window.report = async function(type) {
         const name = document.getElementById('member-select').value;
         if (!name) {
@@ -349,18 +417,13 @@
         }
 
         try {
-            // 使用「點記法」動態指定要更新的欄位 (例如 records.妙妤.am)
             const fieldPath = type === '上午' ? `records.${name}.am` : `records.${name}.pm`;
-            
-            // updateDoc 只會單獨更新這一格，其他同仁剛才打卡的紀錄就不會被洗掉了！
             await updateDoc(docRef, {
                 [fieldPath]: now
             });
         } catch (e) {
             console.error("Error updating document: ", e);
-            
-            // 防呆：如果是當天的第一個同仁點擊，因為資料庫還沒有今日文件，updateDoc 會失敗。
-            // 這時候捕捉錯誤，改用 setDoc 進行首位初始化建立。
+
             if (e.code === 'not-found' || e.message.includes('No document to update')) {
                 const initData = {};
                 initData[name] = type === '上午' ? { am: now } : { pm: now };
@@ -382,7 +445,7 @@
         }
     }
 
-    // 匯出 Excel
+    // 匯出 Excel（新增獨立的「歌曲」欄位）
     window.exportExcel = async function() {
         try {
             const querySnapshot = await getDocs(collection(db, "playback_logs"));
@@ -393,8 +456,8 @@
                 const data = doc.data().records || {};
                 for (const name in data) {
                     const record = data[name];
-                    if (record.am) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '上午', time: record.am });
-                    if (record.pm) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '下午', time: record.pm });
+                    if (record.am) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '上午', song: SONG_BY_PERIOD['上午'], time: record.am });
+                    if (record.pm) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '下午', song: SONG_BY_PERIOD['下午'], time: record.pm });
                 }
             });
 
@@ -406,13 +469,13 @@
                 return a.name.localeCompare(b.name, 'zh-Hant');
             });
 
-            const headerRow = ["日期", "姓名", "時段", "時間"];
-            const dataRows = allRecords.map(r => [r.date, r.name, r.period, r.time]);
-            
+            const headerRow = ["日期", "姓名", "時段", "歌曲", "時間"];
+            const dataRows = allRecords.map(r => [r.date, r.name, r.period, r.song, r.time]);
+
             const wsData = [
-                ["律動MV播放歷史紀錄彙整表", "", "", ""], 
-                headerRow,                             
-                ...dataRows                           
+                ["律動MV播放歷史紀錄彙整表", "", "", "", ""],
+                headerRow,
+                ...dataRows
             ];
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -424,7 +487,7 @@
 
             const styleHeader = {
                 font: { bold: true, color: { rgb: "000000" } },
-                fill: { fgColor: { rgb: "D9EAD3" } }, 
+                fill: { fgColor: { rgb: "D9EAD3" } },
                 alignment: { horizontal: "center", vertical: "center" },
                 border: {
                     top: { style: "thin" }, bottom: { style: "thin" },
@@ -440,7 +503,7 @@
                 }
             };
 
-            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; 
+            ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
             ws['A1'].s = styleTitle;
 
             const range = XLSX.utils.decode_range(ws['!ref']);
@@ -460,10 +523,11 @@
             }
 
             ws['!cols'] = [
-                { wch: 15 }, 
-                { wch: 12 }, 
-                { wch: 10 }, 
-                { wch: 10 }  
+                { wch: 15 },
+                { wch: 12 },
+                { wch: 10 },
+                { wch: 22 },
+                { wch: 10 }
             ];
 
             const wb = XLSX.utils.book_new();
