@@ -339,7 +339,23 @@
         am: { name: "Over The Rainbow", id: "IbiQpSCSz7I" },
         pm: { name: "你啊你啊",          id: "aX8W5-E3kqs" }
     };
-    const SONG_BY_PERIOD = { '上午': SONGS.am.name, '下午': SONGS.pm.name };
+
+    // 下午改播新歌的開始日期（含當天）；此日期之前，上午、下午都播 Over The Rainbow
+    const NEW_SONG_START = "2026-10-27";
+
+    // 把 "2026-6-8" 或 "2026/06/08" 轉成可比較的數字 20260608
+    function dateToNum(str) {
+        const [y, m, d] = String(str).split(/[-\/]/).map(Number);
+        return y * 10000 + m * 100 + d;
+    }
+
+    // 依「日期＋時段」決定當天播的歌名（匯出 Excel 用）
+    function songFor(dateStr, period) {
+        if (period === '下午' && dateToNum(dateStr) >= dateToNum(NEW_SONG_START)) {
+            return SONGS.pm.name;
+        }
+        return SONGS.am.name;
+    }
 
     // 歌名帶入各處
     document.getElementById('tab-am-name').innerText = SONGS.am.name;
@@ -456,8 +472,8 @@
                 const data = doc.data().records || {};
                 for (const name in data) {
                     const record = data[name];
-                    if (record.am) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '上午', song: SONG_BY_PERIOD['上午'], time: record.am });
-                    if (record.pm) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '下午', song: SONG_BY_PERIOD['下午'], time: record.pm });
+                    if (record.am) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '上午', song: songFor(date, '上午'), time: record.am });
+                    if (record.pm) allRecords.push({ date: date.replace(/-/g, '/'), name: name, period: '下午', song: songFor(date, '下午'), time: record.pm });
                 }
             });
 
